@@ -34,6 +34,8 @@ add_tag('DefaultValue')
 add_tag('MinValue')
 add_tag('MaxValue')
 add_tag('Access')
+add_tag('ModbusRegister')
+add_tag('PdoMapping')
 add_tag('Comment')
 
 def parse_object(object):
@@ -61,6 +63,8 @@ def parse_object(object):
             # multiple comments are allowed, concatenate, possibly adding a period.
             # this tag gets quoted, and double quotes get doubled to escape them.
             if node.tag in d:
+                if '.' != d[node.tag][-1]:
+                    d[node.tag] = d[node.tag] + '.'
                 d[node.tag] = d[node.tag] + ' ' + node.text
             else:
                 d[node.tag] = node.text
@@ -105,6 +109,8 @@ objects_dict = dict()
 def make_object_key(object):
     return object['Index'] + ':' + object['SubIdx']
 
+# need deepcopy of datatypes since they get reused
+import copy
 objects = root.findall('.//Objects/Object')
 for object in objects:
     d = parse_object(object)
@@ -113,8 +119,10 @@ for object in objects:
         # custom type, insert its subitems from DataType table
         for subitem in datatypes_dict[dt]['SubItems'].values():
             # assume all uses have a common Index
-            subitem['Index'] = d['Index']
-            objects_dict[make_object_key(subitem)] = subitem
+            newsubitem = copy.deepcopy(subitem)
+            newsubitem['Index'] = d['Index']
+            newsubitem['Name'] = d['Name'] + '/' + newsubitem['Name']
+            objects_dict[make_object_key(newsubitem)] = newsubitem
     objects_dict[make_object_key(d)] = d
     # expand objects with custom types
     
