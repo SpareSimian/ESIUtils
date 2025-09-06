@@ -21,6 +21,7 @@ def add_tag(newTag):
     if newTag not in tag_set:
         tag_list.append(newTag)
         tag_set.add(newTag)
+        #print("add_tag(" + newTag + ")")
 
 # add the tags we want up front
 add_tag('Index')
@@ -40,11 +41,38 @@ def parse_object(object):
     # init dummy keys for object table
     d['Index'] = ''
     d['SubIdx'] = ''
-    for property in object:
-        if ('Info' == property.tag) or ('Flags' == property.tag):
-            property = property[0]
-        add_tag(property.tag)
-        d[property.tag] = property.text
+    for node in object:
+        if 'Properties' == node.tag:
+            for prop in node:
+                if 'Property' == prop.tag:
+                    # should have Name and Value children
+                    propname = prop.find('Name').text
+                    propvalue = prop.find('Value').text
+                    d[propname] = propvalue
+                    add_tag(propname)
+                else:
+                    print('Properties node contains ' + node.tag + ', skipping')
+        elif ('Info' == node.tag) or ('Flags' == node.tag):
+            # add the child nodes, instead, like flag names or min/max/default
+            for subnode in node:
+                add_tag(subnode.tag)
+                d[subnode.tag] = subnode.text
+        elif 'Comment' == node.tag:
+            # multiple comments are allowed, concatenate, possibly adding a period.
+            # this tag gets quoted, and double quotes get doubled to escape them.
+            if node.tag in d:
+                d[node.tag] = d[node.tag] + ' ' + node.text
+            else:
+                d[node.tag] = node.text
+        elif 'Property' == node.tag:
+            # should have Name and Value children
+            propname = node.find('Name').text
+            propvalue = node.find('Value').text
+            d[propname] = propvalue
+            add_tag(propname)
+        else:
+            add_tag(node.tag)
+            d[node.tag] = node.text
     return d
     
 # custom objects can refer to datatypes for internal structure
@@ -53,16 +81,16 @@ datatypes = root.findall('.//DataTypes/DataType')
 for datatype in datatypes:
     d = dict()
     subitems = dict()
-    for property in datatype:
-        if 'SubItem' == property.tag:
-            subitem = parse_object(property)
+    for node in datatype:
+        if 'SubItem' == node.tag:
+            subitem = parse_object(node)
             if 'SubIdx' not in subitem:
-                print('SubItem ' + subitem['Name'] + ' lacks SubIdx property (array?)')
+                print('SubItem ' + subitem['Name'] + ' lacks SubIdx node (array?)')
                 # synthesize one to sort at end
                 subitem['SubIdx'] = '99'
             subitems[subitem['SubIdx']] = subitem
         else:
-            d[property.tag] = property.text
+            d[node.tag] = node.text
     if len(subitems) > 0:
         d['SubItems'] = subitems
     datatypes_dict[d['Name']] = d;
