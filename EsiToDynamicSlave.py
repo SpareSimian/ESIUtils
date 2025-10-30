@@ -69,7 +69,7 @@ def pdoToStruct(device, deviceName, which, output):
     name = xml.find('Name').text
     structName = cleanName(deviceName) + '_' + which
     print(f"// {index} {name}", file=output)
-    print("{attribute 'pack_mode' := '1'}", file=output)
+    print("{attribute 'pack_mode' := '8'}", file=output)
     print(f"TYPE {structName} :", file=output)
     print("STRUCT", file=output)
     # now enumerate members
@@ -108,7 +108,7 @@ structsString = io.StringIO() # to store struct declarations for the end
 
 stFile = open(args.output_filename, 'w')
 print('CASE readeeprom.dwVendorID OF', file=stFile)
-print(f'\t16#{id}: // {name}', file=stFile)
+print(f'\t{id}: // {name}', file=stFile)
 print('\t\tCASE readeeprom.dwProductID OF', file=stFile)
 
 devices = root.find('Descriptions').find('Devices')
@@ -116,7 +116,7 @@ for device in devices.iter('Device'):
     deviceType = device.find('Type')
     productCode = numstring(deviceType.get('ProductCode'))
     name = device.find('Name').text
-    print(f'\t\t\t16#{productCode}: // {name}', file=stFile)
+    print(f'\t\t\t{productCode}: // {name}', file=stFile)
     syncManagers = {} # so we can look up SM properties to invoke AddFMMU properly
 
     for sm in device.iter('Sm'):
@@ -131,12 +131,12 @@ for device in devices.iter('Device'):
         smText = sm.text
         smType = syncManagerType(smText)
         syncManagers[smText] = syncManager
-        print(f'\t\t\t\tpSlave^.AddSyncManager(wStartAddress := {startAddress}, wLength := {defaultSize}, usiMode := {controlByte}, xEnable := {enable}, usiType := {smType})', file=stFile)
+        print(f'\t\t\t\tpSlave^.AddSyncManager(wStartAddress := {startAddress}, wLength := {defaultSize}, usiMode := {controlByte}, xEnable := {enable}, usiType := {smType});', file=stFile)
         
     for fmmu in device.iter('Fmmu'):
         if 'MBoxState' == fmmu.text:
-            print('\t\t\t\tpSlave^.AddFMMU(0, 1, 0, 0, 16#80D, 0, 1, 1)', file=stFile)
-            print('\t\t\t\tpSlave^.AlighFMMU()', file=stFile)
+            print('\t\t\t\tpSlave^.AddFMMU(0, 1, 0, 0, 16#80D, 0, 1, 1);', file=stFile)
+            print('\t\t\t\tpSlave^.AlignFMMU();', file=stFile)
         else:
             syncManager = syncManagers[fmmu.text]
             lengthBytes = syncManager['DefaultSize']
@@ -145,7 +145,9 @@ for device in devices.iter('Device'):
                 access = '1' # read
             else:
                 access = '2' # write
-            print(f'\t\t\t\tpSlave^.AddFMMU(dwGlobalStartAddress := 0, wLength := {lengthBytes}, usiStartBit := 0, usiEndBit := 7, wPhyssStartAddress := {startAddress}, usiPhysStartBit := 0, usiAccess := {access}, dwFlags := 1)', file=stFile)
+            print(f'\t\t\t\tpSlave^.AddFMMU(dwGlobalStartAddress := 0, wLength := {lengthBytes}, usiStartBit := 0, usiEndBit := 7, wPhysStartAddress := {startAddress}, usiPhysStartBit := 0, usiAccess := {access}, dwFlags := 1);', file=stFile)
+
+    print('\t\t\t\txKnown := TRUE;' , file=stFile)
 
     pdoToStruct(device, name, 'RxPdo', structsString)
     pdoToStruct(device, name, 'TxPdo', structsString)
