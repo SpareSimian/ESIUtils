@@ -123,7 +123,8 @@ for object in objects:
             newsubitem['Index'] = d['Index']
             newsubitem['Name'] = d['Name'] + '/' + newsubitem['Name']
             objects_dict[make_object_key(newsubitem)] = newsubitem
-    objects_dict[make_object_key(d)] = d
+    else:
+        objects_dict[make_object_key(d)] = d
     # expand objects with custom types
     
 print(len(objects_dict), 'Objects and sub-Objects')
