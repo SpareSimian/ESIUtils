@@ -29,6 +29,9 @@ def stTypeToPrefix(dataType):
     else:
         return stTypesToPrefix[dataType]
 
+def dataTypeSize(dataType):
+    return 0 # STUB
+
 # hex constants in ESI files look like #x0123. Remove the 0x and replace with ST's 16# prefix. 
 def numstring(xmltext):
     if '#x' == xmltext[0:2]:
@@ -65,6 +68,8 @@ def makeSymbol(text, dataType):
 
 def pdoToStruct(device, deviceName, which, output):
     xml = device.find(which)
+    if not xml:
+        return 0
     index = numstring(xml.find('Index').text)
     name = xml.find('Name').text
     structName = cleanName(deviceName) + '_' + which
@@ -73,8 +78,10 @@ def pdoToStruct(device, deviceName, which, output):
     print(f"TYPE {structName} :", file=output)
     print("STRUCT", file=output)
     # now enumerate members
+    size = 0
     for entry in xml.iter('Entry'):
         dataType = entry.find('DataType').text
+        size = size + dataTypeSize(dataType)
         member = makeSymbol(entry.find('Name').text, dataType)
         indexEntry = numstring(entry.find('Index').text)
         subindexEntry = numstring(entry.find('SubIndex').text)
@@ -86,6 +93,7 @@ def pdoToStruct(device, deviceName, which, output):
     print("END_STRUCT", file=output)
     print("END_TYPE", file=output)
     print('\n', file=output)
+    return size
 
 import argparse
 parser = argparse.ArgumentParser(description='Code generator for EtherCAT master. From ESI file, generate structured text code to initialize a slave.')
@@ -119,17 +127,31 @@ for device in devices.iter('Device'):
     print(f'\t\t\t{productCode}: // {name}', file=stFile)
     syncManagers = {} # so we can look up SM properties to invoke AddFMMU properly
 
+    rxPdoSize = pdoToStruct(device, name, 'RxPdo', structsString)
+    txPdoSize = pdoToStruct(device, name, 'TxPdo', structsString)
+
     for sm in device.iter('Sm'):
         syncManager = {}
         startAddress = numstring(sm.get('StartAddress'))
         syncManager['StartAddress'] = startAddress
-        defaultSize = numstring(sm.get('DefaultSize'))
-        syncManager['DefaultSize'] = defaultSize
-        enable = xmlbool(sm.get('Enable'))
-        controlByte = numstring(sm.get("ControlByte"))
-        syncManager['ControlByte'] = controlByte
         smText = sm.text
         smType = syncManagerType(smText)
+        if 'DefaultSize' in sm.attrib:
+            defaultSize = numstring(sm.get('DefaultSize'))
+        else:
+            if 'Outputs' == smText:
+                defaultSize = txPdoSize
+            elif 'Inputs' == smText:
+                defaultSize = rxPdoSize
+            else:
+                raise ValueError("no default size for sync manager")
+        syncManager['DefaultSize'] = defaultSize
+        if 'DefaultSize' in sm.attrib:
+            enable = xmlbool(sm.get('Enable'))
+        else:
+            enable = '1'
+        controlByte = numstring(sm.get("ControlByte"))
+        syncManager['ControlByte'] = controlByte
         syncManagers[smText] = syncManager
         print(f'\t\t\t\tpSlave^.AddSyncManager(wStartAddress := {startAddress}, wLength := {defaultSize}, usiMode := {controlByte}, xEnable := {enable}, usiType := {smType});', file=stFile)
         
@@ -149,8 +171,6 @@ for device in devices.iter('Device'):
 
     print('\t\t\t\txKnown := TRUE;' , file=stFile)
 
-    pdoToStruct(device, name, 'RxPdo', structsString)
-    pdoToStruct(device, name, 'TxPdo', structsString)
 
 print('\t\tEND_CASE', file=stFile)
 print('END_CASE', file=stFile)
