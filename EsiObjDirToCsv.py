@@ -78,11 +78,8 @@ def parse_object(object):
             add_tag(node.tag)
             d[node.tag] = node.text
     return d
-    
-# custom objects can refer to datatypes for internal structure
-datatypes_dict = dict()
-datatypes = root.findall('.//DataTypes/DataType')
-for datatype in datatypes:
+
+def parse_subitem(datatype):
     d = dict()
     subitems = dict()
     for node in datatype:
@@ -97,8 +94,40 @@ for datatype in datatypes:
             d[node.tag] = node.text
     if len(subitems) > 0:
         d['SubItems'] = subitems
-    datatypes_dict[d['Name']] = d;
-print(len(datatypes_dict), 'DataTypes')
+    return d;
+
+def parse_enum(datatype_name, datatype):
+    d = dict()
+    d['Name'] = datatype_name
+    d['BaseType'] = datatype.find('BaseType').text
+    enumValues = dict()
+    for enumInfo in datatype.iter('EnumInfo'):
+        info = dict()
+        info['Text'] = enumInfo.find('Text').text
+        comment = enumInfo.find('Comment')
+        if comment:
+            info['Comment'] = comment.text
+        value = enumInfo.find('Enum').text
+        info['Value'] = value
+        enumValues[value] = info
+    d['Values'] = enumValues
+    return d
+    
+# custom objects can refer to datatypes for internal structure
+subitemtypes_dict = dict()
+enumtypes_dict = dict()
+datatypes = root.findall('.//DataTypes/DataType')
+
+for datatype in datatypes:
+    datatype_name = datatype.find('Name').text
+    if datatype.find('EnumInfo'):
+        enumtypes_dict[datatype_name] = parse_enum(datatype_name, datatype)
+    elif datatype.find('SubItem'):
+        subitemtypes_dict[datatype_name] = parse_subitem(datatype)
+    #else:
+    #   print(f'Unknown datatype {datatype_name}')
+print(len(subitemtypes_dict), 'SubItems')
+print(len(enumtypes_dict), 'Enums')
 
 # custom types should be DT followed by 4 hex digits
 import re
@@ -109,7 +138,7 @@ objects_dict = dict()
 def make_object_key(object):
     return object['Index'] + ':' + object['SubIdx']
 
-# need deepcopy of datatypes since they get reused
+# need deepcopy of subitemtypes since they get reused
 import copy
 objects = root.findall('.//Objects/Object')
 for object in objects:
@@ -117,7 +146,7 @@ for object in objects:
     dt = d['Type'] # datatype
     if m.match(dt):
         # custom type, insert its subitems from DataType table
-        for subitem in datatypes_dict[dt]['SubItems'].values():
+        for subitem in subitemtypes_dict[dt]['SubItems'].values():
             # assume all uses have a common Index
             newsubitem = copy.deepcopy(subitem)
             newsubitem['Index'] = d['Index']
@@ -130,9 +159,20 @@ for object in objects:
 print(len(objects_dict), 'Objects and sub-Objects')
 object_fieldnames = tag_list
 
+def write_enum(name, enum, csv_file):
+    print('', file=csv_file)
+    basetype = enum['BaseType']
+    print(f'enum {name} {basetype}', file=csv_file)
+    print('value, name, comment', file=csv_file)
+    enum_writer = DictWriter(csv_file, fieldnames = ['Value', 'Text', 'Comment'])
+    for value in enum['Values'].values():
+        enum_writer.writerow(value)
+
 from csv import DictWriter
 with open(args.output_filename, 'w', newline = '', encoding='UTF-8') as csv_file:
     writer = DictWriter(csv_file, fieldnames = object_fieldnames)
     writer.writeheader()
-    for id, object in objects_dict.items():
+    for object in objects_dict.values():
         writer.writerow(object)
+    for name, enum in enumtypes_dict.items():
+        write_enum(name, enum, csv_file)
