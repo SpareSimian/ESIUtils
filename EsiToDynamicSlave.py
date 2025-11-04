@@ -68,13 +68,13 @@ def makeSymbol(text, dataType):
 
 def pdoToStruct(device, deviceName, which, output):
     xml = device.find(which)
-    if not xml:
+    if xml is None:
         return 0
     index = numstring(xml.find('Index').text)
     name = xml.find('Name').text
     structName = cleanName(deviceName) + '_' + which
     print(f"// {index} {name}", file=output)
-    print("{attribute 'pack_mode' := '8'}", file=output)
+    print("{attribute 'pack_mode' := '1'}", file=output)
     print(f"TYPE {structName} :", file=output)
     print("STRUCT", file=output)
     # now enumerate members
