@@ -60,7 +60,9 @@ def xmlbool(xmltext):
         return ValueError("unrecognized bool value " + xmltext)
 
 def cleanName(name):
-    return re.sub(r'[ -]', '_', name)
+    noDashesOrSpaces = re.sub(r'[ -]', '_', name)
+    onlyAlphaNumUnder = re.sub(r'[^A-Za-z0-9_]+', '', noDashesOrSpaces)
+    return onlyAlphaNumUnder
 
 def makeSymbol(text, dataType):
     # strip spaces and add hungarian prefix
@@ -72,7 +74,7 @@ def pdoToStruct(device, deviceName, which, output):
         return 0
     index = numstring(xml.find('Index').text)
     name = xml.find('Name').text
-    structName = cleanName(deviceName) + '_' + which
+    structName = 'ST_' + cleanName(deviceName) + '_' + which
     print(f"// {index} {name}", file=output)
     print("{attribute 'pack_mode' := '1'}", file=output)
     print(f"TYPE {structName} :", file=output)
