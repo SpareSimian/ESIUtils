@@ -115,14 +115,21 @@ class ObjectDictionary:
     def _parse_subitem(self, datatype):
         d = dict()
         subitems = dict()
+        last_subidx = 0
         for node in datatype:
             if 'SubItem' == node.tag:
                 subitem = self._parse_object(node)
-                if 'SubIdx' not in subitem:
-                    print('SubItem ' + subitem['Name'] + ' lacks SubIdx node (array?)')
+                subidx = subitem['SubIdx']
+                if '' != subidx:
+                    last_subidx = int(subidx)
+                else:
+                    #print('SubItem ' + subitem['Name'] + ' lacks SubIdx node (array?)')
                     # synthesize one to sort at end
-                    subitem['SubIdx'] = '99'
-                subitems[subitem['SubIdx']] = subitem
+                    subidx_number = last_subidx + 1
+                    subidx = f"{subidx_number}"
+                    subitem['SubIdx'] = subidx
+                    last_subidx = subidx_number
+                subitems[subidx] = subitem
             else:
                 d[node.tag] = node.text
         if len(subitems) > 0:
@@ -151,6 +158,9 @@ class ObjectDictionary:
 
     @staticmethod
     def _make_object_key(object):
+        ''' key looks like #x1234:56 with index in hex and subindex in decimal '''
+        ''' subindex may be empty string '''
+        ''' hex letters are uppercase '''
         return object['Index'] + ':' + object['SubIdx']
 
 
