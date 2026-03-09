@@ -24,7 +24,7 @@ def write_enum(name, enum, csv_file):
         enum_writer.writerow(value)
 
 from csv import DictWriter
-with open(args.output_filename, 'w', newline = '', encoding='UTF-8') as csv_file:
+with open(args.output_filename, 'wt', encoding='UTF-8') as csv_file:
     writer = DictWriter(csv_file, fieldnames = obj_dict.object_fieldnames)
     writer.writeheader()
     for object in obj_dict.objects_dict.values():
