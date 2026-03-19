@@ -4,3 +4,4 @@
 *.st
 .vscode
 .venv
+*.h
