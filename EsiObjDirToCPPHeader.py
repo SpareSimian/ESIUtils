@@ -74,7 +74,10 @@ def object_to_cpp(object, h_file):
                 indent = '   '
                 print(f'namespace {namespace} {{', file=h_file)
     if 'SubIndex0' != sub_name:
-        print(f'{indent}const ObjectAddress {sub_name} = {{ {index}, {subindex} }};', file=h_file)
+        comment = ''
+        if 'Comment' in object:
+            comment = ' // ' + object['Comment']
+        print(f'{indent}const ObjectAddress {sub_name} = {{ {index}, {subindex} }};{comment}', file=h_file)
 
 import argparse
 from esi_file import ObjectDictionary
