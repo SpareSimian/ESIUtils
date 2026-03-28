@@ -68,34 +68,34 @@ def makeSymbol(text, dataType):
     # strip spaces and add hungarian prefix
     return stTypeToPrefix(dataType) + re.sub(r'[ ]', '', text)
 
-def pdoToStruct(device, deviceName, which, output):
-    xml = device.find(which)
-    if xml is None:
-        return 0
-    index = numstring(xml.find('Index').text)
-    name = xml.find('Name').text
-    structName = 'ST_' + cleanName(deviceName) + '_' + which
-    print(f"// {index} {name}", file=output)
-    print("{attribute 'pack_mode' := '1'}", file=output)
-    print(f"TYPE {structName} :", file=output)
-    print("STRUCT", file=output)
-    # now enumerate members
-    size = 0
-    for entry in xml.iter('Entry'):
-        dataType = entry.find('DataType').text
-        size = size + dataTypeSize(dataType)
-        member = makeSymbol(entry.find('Name').text, dataType)
-        indexEntry = numstring(entry.find('Index').text)
-        subindexEntry = numstring(entry.find('SubIndex').text)
-        if '0' == subindexEntry:
-            subindexEntry = ''
-        else:
-            subindexEntry = ':' + subindexEntry
-        print(f'\t{member} : {dataType}; // {indexEntry}{subindexEntry}', file=output)
-    print("END_STRUCT", file=output)
-    print("END_TYPE", file=output)
-    print('\n', file=output)
-    return size
+def pdoToStruct(device_xml, deviceName, which_direction, output_file):
+    ''' which_direction is TxPdo or RxPdo, can be multiple '''
+    all = []
+    for xml in device_xml.iter(which_direction):
+        index = numstring(xml.find('Index').text)
+        name = xml.find('Name').text
+        structName = 'ST_' + cleanName(deviceName) + '_' + cleanName(name)
+        print(f"// {index} {name}", file=output_file)
+        print("{attribute 'pack_mode' := '1'}", file=output_file)
+        print(f"TYPE {structName} :", file=output_file)
+        print("STRUCT", file=output_file)
+        # now enumerate members
+        size = 0
+        for entry in xml.iter('Entry'):
+            dataType = entry.find('DataType').text
+            size = size + dataTypeSize(dataType)
+            member = makeSymbol(entry.find('Name').text, dataType)
+            indexEntry = numstring(entry.find('Index').text)
+            subindexEntry = numstring(entry.find('SubIndex').text)
+            if '0' == subindexEntry:
+                subindexEntry = ''
+            else:
+                subindexEntry = ':' + subindexEntry
+            print(f'\t{member} : {dataType}; // {indexEntry}{subindexEntry}', file=output_file)
+        print("END_STRUCT", file=output_file)
+        print("END_TYPE\n", file=output_file) # extra newline between structs!
+        all.append([structName, size])
+    return all
 
 import argparse
 parser = argparse.ArgumentParser(description='Code generator for EtherCAT master. From ESI file, generate structured text code to initialize a slave.')
@@ -129,8 +129,11 @@ for device in devices.iter('Device'):
     print(f'\t\t\t{productCode}: // {name}', file=stFile)
     syncManagers = {} # so we can look up SM properties to invoke AddFMMU properly
 
-    rxPdoSize = pdoToStruct(device, name, 'RxPdo', structsString)
-    txPdoSize = pdoToStruct(device, name, 'TxPdo', structsString)
+    # this produces lists of each PDO direction, element is [name, size]
+    # gather the text output in a string for output after the main
+    # device type switch
+    rx_pdos = pdoToStruct(device, name, 'RxPdo', structsString)
+    tx_pdos = pdoToStruct(device, name, 'TxPdo', structsString)
 
     for sm in device.iter('Sm'):
         syncManager = {}
@@ -140,6 +143,7 @@ for device in devices.iter('Device'):
         smType = syncManagerType(smText)
         if 'DefaultSize' in sm.attrib:
             defaultSize = numstring(sm.get('DefaultSize'))
+            '''
         else:
             if 'Outputs' == smText:
                 defaultSize = txPdoSize
@@ -147,6 +151,7 @@ for device in devices.iter('Device'):
                 defaultSize = rxPdoSize
             else:
                 raise ValueError("no default size for sync manager")
+            '''
         syncManager['DefaultSize'] = defaultSize
         if 'DefaultSize' in sm.attrib:
             enable = xmlbool(sm.get('Enable'))
