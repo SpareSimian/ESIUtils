@@ -31,3 +31,7 @@ with open(args.output_filename, 'wt', encoding='UTF-8') as csv_file:
         writer.writerow(object)
     for name, enum in obj_dict.enumtypes_dict.items():
         write_enum(name, enum, csv_file)
+    ''' need a better rendering here, this is ugly
+    for name, subitem in obj_dict.subitemtypes_dict.items():
+        print(f'{name}: {subitem}')
+    '''

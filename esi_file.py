@@ -41,12 +41,16 @@ class ObjectDictionary:
         self.datatypes = root.findall('.//DataTypes/DataType')
         for datatype in self.datatypes:
             datatype_name = datatype.find('Name').text
-            if datatype.find('EnumInfo'):
+            if ObjectDictionary._is_builtin_datatype(datatype_name):
+                pass # ignore these
+            elif datatype.find('EnumInfo'):
                 self.enumtypes_dict[datatype_name] = self._parse_enum(datatype_name, datatype)
             elif datatype.find('SubItem'):
                 self.subitemtypes_dict[datatype_name] = self._parse_subitem(datatype)
-            #else:
-            #   print(f'Unknown datatype {datatype_name}')
+            elif datatype.find('ArrayInfo'):
+                self.subitemtypes_dict[datatype_name] = self._parse_array(datatype)
+            else:
+                print(f'Unknown datatype {datatype_name}')
         self.objects_dict = dict()
         objects = root.findall('.//Objects/Object')
         for object in objects:
@@ -135,7 +139,17 @@ class ObjectDictionary:
         if len(subitems) > 0:
             d['SubItems'] = subitems
         return d;
-    
+
+    def _parse_array(self, datatype):
+        d = dict()
+        d['BaseType'] = datatype.find('BaseType').text
+        dArrayInfo = dict()
+        array_info = datatype.find('ArrayInfo')
+        dArrayInfo['LBound'] = array_info.find('LBound').text
+        dArrayInfo['Elements'] = array_info.find('Elements').text
+        d['ArrayInfo'] = dArrayInfo
+        return d;
+
     def _parse_enum(self, datatype_name, datatype):
         d = dict()
         d['Name'] = datatype_name
@@ -152,7 +166,33 @@ class ObjectDictionary:
             enumValues[value] = info
         d['Values'] = enumValues
         return d
-        
+
+    @staticmethod
+    def _is_builtin_datatype(name):
+        if name in [
+            'BOOL',
+            'SINT',
+            'INT',
+            'DINT',
+            'LINT',
+            'USINT',
+            'BYTE',
+            'UINT',
+            'WORD',
+            'UDINT',
+            'DWORD',
+            'ULINT',
+            'LWORD',
+            'REAL',
+            'LREAL'
+            ] :
+            return True;
+        if name.startswith('ARRAY ['):
+            return True;
+        if name.startswith('STRING('):
+            return True;
+        return False;
+
     # custom types should be DT followed by 4 hex digits
     _m = re.compile('^DT[0-9A-F]{4}$')
 
