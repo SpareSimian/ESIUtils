@@ -1,9 +1,16 @@
 # dump the object directory from an EtherCAT ESI file to a CSV table
 
+__version__ = '0.1.0'
+
 import argparse
 from esi_file import ObjectDictionary
 
 parser = argparse.ArgumentParser(description='Extract object directory from EtherCAT ESI file as table in CSV format')
+parser.add_argument(
+    '-v', '--version', 
+    action='version', 
+    version='%(prog)s ' + __version__
+)
 parser.add_argument('input_filename', help='path of ESI file')
 parser.add_argument('output_filename', help='path of CSV file')
 args = parser.parse_args()
@@ -35,3 +42,8 @@ with open(args.output_filename, 'wt', encoding='UTF-8') as csv_file:
     for name, subitem in obj_dict.subitemtypes_dict.items():
         print(f'{name}: {subitem}')
     '''
+    # identify source and device(s)
+    print(file=csv_file)
+    print(f'"from file {obj_dict.filename}"', file=csv_file)
+    print(f'"for vendor {obj_dict.vendor}"', file=csv_file)
+    print(f'"for device(s) {obj_dict.devices}"', file=csv_file)

@@ -1,5 +1,7 @@
 # module with common ESI handling
 
+__version__ = '0.1.0'
+
 import xml.etree.ElementTree as ET
 import re
 import copy # need deepcopy of subitemtypes since they get reused
@@ -18,6 +20,10 @@ class ObjectDictionary:
     def __init__(self, root, filename):
         self.root = root
         self.filename = filename
+        self.vendor = root.find('Vendor/Name').text;
+        self.devices = []
+        for device in root.findall('.//Devices/Device/Name'):
+            self.devices.append(device.text)
         self._tag_list = list() # list of an object's field names 
         # for testing if we have this one yet
         self._tag_set = set()

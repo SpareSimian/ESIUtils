@@ -1,6 +1,8 @@
 # Code generator for EtherCAT master.
 # From ESI file, generate structured text code to initialize a slave.
 
+__version__ = '0.1.0'
+
 import io
 import re
 
@@ -99,6 +101,11 @@ def pdoToStruct(device_xml, deviceName, which_direction, output_file):
 
 import argparse
 parser = argparse.ArgumentParser(description='Code generator for EtherCAT master. From ESI file, generate structured text code to initialize a slave.')
+parser.add_argument(
+    '-v', '--version', 
+    action='version', 
+    version='%(prog)s ' + __version__
+)
 parser.add_argument('input_filename', help='path of ESI file')
 parser.add_argument('output_filename', help='path of ST file')
 args = parser.parse_args()
@@ -112,13 +119,17 @@ root = tree.getroot()
 
 vendor = root.find('Vendor')
 id = numstring(vendor.find('Id').text)
-name = vendor.find('Name').text
+vendor_name = vendor.find('Name').text
 
 structsString = io.StringIO() # to store struct declarations for the end
 
 stFile = open(args.output_filename, 'w')
+
+# identify source
+print(f'// from file {args.input_filename}\n', file=stFile)
+
 print('CASE readeeprom.dwVendorID OF', file=stFile)
-print(f'\t{id}: // {name}', file=stFile)
+print(f'\t{id}: // {vendor_name}', file=stFile)
 print('\t\tCASE readeeprom.dwProductID OF', file=stFile)
 
 devices = root.find('Descriptions').find('Devices')
