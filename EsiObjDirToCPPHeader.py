@@ -45,12 +45,15 @@ struct ObjectAddress
    std::uint16_t index;
    std::uint8_t subindex;
    Type type;
+   unsigned byteCount;
    ObjectAddress(std::uint16_t index_ = 0,
                  std::uint8_t subindex_ = 0,
-                 Type type_ = Type::UNKNOWN) :
+                 Type type_ = Type::UNKNOWN,
+                 unsigned byteCount_ = 0) :
        index(index_),
        subindex(subindex_),
-       type(type_)
+       type(type_),
+       byteCount(byteCount_)
    {}
 };
 
@@ -94,8 +97,8 @@ def object_subindex_to_cpp_number(subindex):
 def translateType(raw_type):
     # if type is a string or enum, provide a proxy
     if '(' in raw_type:
-        # leave the contents of the parens as a comment
-        return 'Type::' + re.sub(r'\(([0-9]+)\)', r'/* \1 */', raw_type)
+        # for strings, remove the size, will be added as byteCount member
+        return 'Type::' + re.sub(r'\(([0-9]+)\)', '', raw_type)
     # create aliases (below, in write_enum and write_subitemtype) so we can use original enum name here
     if raw_type.startswith('DT'):
         return raw_type
@@ -137,7 +140,8 @@ def object_to_cpp(object, h_file):
         if 'Comment' in object:
             comment = ' // ' + object['Comment']
         type = translateType(object['Type'])
-        print(f'{indent}const ObjectAddress {sub_name} = {{ {index}, {subindex}, {type} }};{comment}', file=h_file)
+        byteCount = (int(object['BitSize']) + 7) // 8
+        print(f'{indent}const ObjectAddress {sub_name} = {{ {index}, {subindex}, {type}, {byteCount} }};{comment}', file=h_file)
 
 def write_enum(name, enum, h_file):
     # typedef the name to its base type
