@@ -16,24 +16,25 @@ namespace CANopen {
 
 enum class Type
 {
-    STRING, // length in comment
-    ARRAY, // range and type in comment
-    STRUCT, // size in bits comment
-    BOOL,
-    SINT,
-    INT,
-    DINT,
-    LINT,
-    USINT,
-    BYTE,
-    UINT,
-    WORD,
-    UDINT,
-    DWORD,
-    ULINT,
-    LWORD,
-    REAL,
-    LREAL
+   UNKNOWN,
+   STRING, // length in comment
+   ARRAY, // range and type in comment
+   STRUCT, // size in bits comment
+   BOOL,
+   SINT,
+   INT,
+   DINT,
+   LINT,
+   USINT,
+   BYTE,
+   UINT,
+   WORD,
+   UDINT,
+   DWORD,
+   ULINT,
+   LWORD,
+   REAL,
+   LREAL
 };
 
 '''
@@ -44,6 +45,13 @@ struct ObjectAddress
    std::uint16_t index;
    std::uint8_t subindex;
    Type type;
+   ObjectAddress(std::uint16_t index_ = 0,
+                 std::uint8_t subindex_ = 0,
+                 Type type_ = Type::UNKNOWN) :
+       index(index_),
+       subindex(subindex_),
+       type(type_)
+   {}
 };
 
 '''
