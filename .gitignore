@@ -5,3 +5,5 @@
 .vscode
 .venv
 *.h
+OLD
+__pycache__
