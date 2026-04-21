@@ -55,7 +55,25 @@ struct ObjectAddress
        type(type_),
        byteCount(byteCount_)
    {}
+   // "spaceship operator" returns -1, 0, 1
+   // for sorting addresses by index::subindex
+   // only index and subindex are relevant to comparison
+   int compare(const ObjectAddress& other) const
+   {
+      if (index < other.index) return -1;
+      if (index > other.index) return 1;
+      if (subindex < other.subindex) return -1;
+      if (subindex > other.subindex) return 1;
+      return 0;
+   }
 };
+
+inline bool operator<  (const ObjectAddress& o1, const ObjectAddress& o2) { return o1.compare(o2) <  0; }
+inline bool operator<= (const ObjectAddress& o1, const ObjectAddress& o2) { return o1.compare(o2) <= 0; }
+inline bool operator== (const ObjectAddress& o1, const ObjectAddress& o2) { return o1.compare(o2) == 0; }
+inline bool operator>  (const ObjectAddress& o1, const ObjectAddress& o2) { return o1.compare(o2) >  0; }
+inline bool operator>= (const ObjectAddress& o1, const ObjectAddress& o2) { return o1.compare(o2) >= 0; }
+inline bool operator!= (const ObjectAddress& o1, const ObjectAddress& o2) { return o1.compare(o2) != 0; }
 
 '''
 
