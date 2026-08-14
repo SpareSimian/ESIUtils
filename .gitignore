@@ -7,3 +7,4 @@
 *.h
 OLD
 __pycache__
+git-*
