@@ -1,6 +1,6 @@
 # dump the object directory from an EtherCAT ESI file to a C++ header file
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 import re
 
@@ -46,14 +46,23 @@ struct ObjectAddress
    std::uint8_t subindex;
    Type type;
    unsigned byteCount;
-   ObjectAddress(std::uint16_t index_ = 0,
-                 std::uint8_t subindex_ = 0,
-                 Type type_ = Type::UNKNOWN,
-                 unsigned byteCount_ = 0) :
+   const char* indexName;
+   const char* subindexName;
+   const char* description;
+   constexpr ObjectAddress(std::uint16_t index_ = 0,
+                           std::uint8_t subindex_ = 0,
+                           Type type_ = Type::UNKNOWN,
+                           unsigned byteCount_ = 0,
+                           const char* indexName_ = "",
+                           const char* subindexName_ = "",
+                           const char* description_ = "") :
        index(index_),
        subindex(subindex_),
        type(type_),
-       byteCount(byteCount_)
+       byteCount(byteCount_),
+       indexName(indexName_),
+       subindexName(subindexName_),
+       description(description_)
    {}
    // "spaceship operator" returns -1, 0, 1
    // for sorting addresses by index::subindex
@@ -126,12 +135,15 @@ def translateType(raw_type):
         return 'Type::ARRAY /* ' + details + ' */'
     return 'Type::' + raw_type
 
-def enterNamespace(section_name, index, h_file):
+def enter_namespace(section_name, index, h_file):
     namespace = section_name
     indent = '   '
     print(f'namespace {namespace} {{', file=h_file)
-    print(f'{indent}const std::uint16_t Index = {index};', file=h_file)
+    print(f'{indent}constexpr std::uint16_t Index = {index};', file=h_file)
     return namespace, indent
+
+def escape_quotes(s):
+    return s.replace('"', '\\"')
 
 def object_to_cpp(object, h_file):
     global namespace
@@ -147,19 +159,19 @@ def object_to_cpp(object, h_file):
                 indent = ''
             else:
                 # entering a new namespace (section)
-                namespace, indent = enterNamespace(section_name, index, h_file)
+                namespace, indent = enter_namespace(section_name, index, h_file)
         else:
             # currently in outer namespace and possibly entering one
             if '' != object['SubIdx']:
                 # entering a new namespace (section)
-                namespace, indent = enterNamespace(section_name, index, h_file)
+                namespace, indent = enter_namespace(section_name, index, h_file)
     if 'SubIndex0' != sub_name:
         comment = ''
         if 'Comment' in object:
-            comment = ' // ' + object['Comment']
+            comment = escape_quotes(object['Comment'])
         type = translateType(object['Type'])
         byteCount = (int(object['BitSize']) + 7) // 8
-        print(f'{indent}const ObjectAddress {sub_name} = {{ {index}, {subindex}, {type}, {byteCount} }};{comment}', file=h_file)
+        print(f'{indent}constexpr ObjectAddress {sub_name} {{ {index}, {subindex}, {type}, {byteCount}, "{namespace}", "{sub_name}", "{comment}" }};', file=h_file)
 
 def write_enum(name, enum, h_file):
     # typedef the name to its base type
