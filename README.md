@@ -14,7 +14,7 @@ Generate structured text source code suitable for use in the CODESYS Dynamic Con
 
 Usage: `EsiToDynamicSlave.py esi-file st-file`
 
-## `EsiObjDirToCPPHeader.py`
+## EsiObjDirToCPPHeader
 
 Generate a C++ header file. Sections (common index values) become
 namespaces. Objects without a subindex are placed in the outermost
@@ -24,7 +24,7 @@ descriptive strings for apps that want to print ESI symbol names.
 
 Usage: `EsiObjDirToCPPHeader.py esi-file h-file`
 
-## `EsiToValidSdoList.py`
+## EsiToValidSdoList
 
 Dump a structured text variable with a list of all known objects and a
 count of the number of objects, for use in PLC applications that want
