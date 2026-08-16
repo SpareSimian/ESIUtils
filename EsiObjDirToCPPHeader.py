@@ -1,6 +1,6 @@
 # dump the object directory from an EtherCAT ESI file to a C++ header file
 
-__version__ = '0.3.0'
+__version__ = '0.4.0'
 
 import re
 
@@ -11,6 +11,7 @@ header1 = '''#pragma once
 
 header2 = '''
 #include <cstdint>
+#include <array>
 
 namespace CANopen {
 
@@ -172,7 +173,14 @@ def object_to_cpp(object, h_file):
         type = translateType(object['Type'])
         byteCount = (int(object['BitSize']) + 7) // 8
         print(f'{indent}constexpr ObjectAddress {sub_name} {{ {index}, {subindex}, {type}, {byteCount}, "{namespace}", "{sub_name}", "{comment}" }};', file=h_file)
+    return namespace, sub_name
 
+def object_cpp_name(namespace, sub_name):
+    if '' == namespace:
+        return sub_name
+    else:
+        return f'{namespace}::{sub_name}';
+    
 def write_enum(name, enum, h_file):
     # typedef the name to its base type
     basetype = enum['BaseType']
@@ -213,6 +221,14 @@ with open(args.output_filename, 'wt', encoding='UTF-8') as h_file:
     for name, subitemtype in obj_dict.subitemtypes_dict.items():
         write_subitemtype(name, subitemtype, h_file)
     h_file.write(header3)
+    object_names = []
+    object_count = 0
     for object in obj_dict.objects_dict.values():
-        object_to_cpp(object, h_file)
+        namespace, sub_name = object_to_cpp(object, h_file)
+        if 'SubIndex0' != sub_name:
+            object_names.append(object_cpp_name(namespace, sub_name))
+            object_count = object_count + 1
+    h_file.write(f'\nconstexpr std::array<ObjectAddress, {object_count}> objectAddresses{{\n   ');
+    h_file.write(',\n   '.join(object_names))
+    h_file.write('\n};\n');
     h_file.write(footer)
