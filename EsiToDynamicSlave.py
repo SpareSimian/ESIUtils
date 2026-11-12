@@ -22,6 +22,28 @@ stTypesToPrefix = {
     'LWORD' : 'lw',
     'REAL' : 'r',
     'LREAL' : 'lr',
+    'INT8' : 'i8',
+    'INT16' : 'i16',
+    'INT32' : 'i32',
+    'INT64' : 'i64',
+    'UINT8' : 'ui8',
+    'UINT16' : 'ui16',
+    'UINT32' : 'ui32',
+    'UINT64' : 'ui64',
+    'REAL32' : 'r32',
+    'REAL64' : 'r64',
+    'BIT' : 'b',
+    'BIT1' : 'b1',
+    'BIT2' : 'b2',
+    'BIT3' : 'b3',
+    'BIT4' : 'b4',
+    'BIT5' : 'b5',
+    'BIT6' : 'b6',
+    'BIT7' : 'b7',
+    'BIT8' : 'b8',
+    'BITARR8' : 'ab8',
+    'BITARR16' : 'ab16',
+    'BITARR32' : 'ab32'
 }
 
 def stTypeToPrefix(dataType):

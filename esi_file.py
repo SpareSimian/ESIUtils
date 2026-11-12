@@ -190,12 +190,38 @@ class ObjectDictionary:
             'ULINT',
             'LWORD',
             'REAL',
-            'LREAL'
+            'LREAL',
+            # synonyms with encoded size
+            'INT8',
+            'INT16',
+            'INT32',
+            'INT64',
+            'UINT8',
+            'UINT16',
+            'UINT32',
+            'UINT64',
+            'REAL32',
+            'REAL64',
+            # bit fields 
+            'BIT',
+            'BIT1',
+            'BIT2',
+            'BIT3',
+            'BIT4',
+            'BIT5',
+            'BIT6',
+            'BIT7',
+            'BIT8',
+            'BITARR8',
+            'BITARR16',
+            'BITARR32'
             ] :
             return True;
         if name.startswith('ARRAY ['):
             return True;
         if name.startswith('STRING('):
+            return True;
+        if name.startswith('VISIBLE_STRING('):
             return True;
         return False;
 

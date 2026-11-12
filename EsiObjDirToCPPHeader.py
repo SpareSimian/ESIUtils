@@ -35,7 +35,31 @@ enum class Type
    ULINT,
    LWORD,
    REAL,
-   LREAL
+   LREAL,
+   // synonyms with encoded size
+   INT8,
+   INT16,
+   INT32,
+   INT64,
+   UINT8,
+   UINT16,
+   UINT32,
+   UINT64,
+   REAL32,
+   REAL64,
+   // bit fields 
+   BIT,
+   BIT1,
+   BIT2,
+   BIT3,
+   BIT4,
+   BIT5,
+   BIT6,
+   BIT7,
+   BIT8,
+   BITARR8,
+   BITARR16,
+   BITARR32
 };
 
 '''
@@ -100,6 +124,11 @@ def is_invalid_c_symbol(name):
     first_char = name[0]
     return not first_char.isalpha() and first_char != '_'
 
+def recapitalize(text):
+    # capitalize first letter of each word but retain internal
+    # capitalization
+    return " ".join(word[:1].upper() + word[1:] for word in text.split(" "))
+    
 def object_name_to_cpp_symbol(name):
     if '/' in name:
         section, subsection = name.split('/')
@@ -111,7 +140,7 @@ def object_name_to_cpp_symbol(name):
         section = 'X_' + section
     if is_invalid_c_symbol(subsection):
         subsection = 'X_' + subsection
-    return section.replace(' ', '_'), subsection.replace(' ', '_')
+    return recapitalize(section.strip()).replace(' ', '_').replace('64-Bit', '64'), recapitalize(subsection.strip()).replace(' ', '_').replace('64-Bit', '64')
 
 def object_index_to_cpp_hex(index):
     return index.replace('#', '0')
