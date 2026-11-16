@@ -29,14 +29,97 @@ class EsiFile:
             device["ProductCode"] = EsiFile._hex_string(device_type.get('ProductCode'))
             # objdict belongs to a profile. for now, assume one profile 
             device["ObjectDictionary"] = ObjectDictionary(self, device_node)
+            device["Fmmu"] = self._parse_fmmu(device_node)
+            device["Sm"] = self._parse_sync_managers(device_node)
+            device["RxPdos"] = self._parse_pdos(device_node, "RxPdo")
+            device["TxPdos"] = self._parse_pdos(device_node, "TxPdo")
             self.devices[device_name] = device
+
+    def _parse_fmmu(self, device_node: ET.Element):
+        fmmu_nodes = device_node.findall('Fmmu')
+        fmmus = []
+        for fmmu_node in fmmu_nodes:
+            fmmus.append(fmmu_node.text)
+        return fmmus
+
+    def _parse_sync_managers(self, device_node: ET.Element):
+        sm_nodes = device_node.findall('Sm')
+        sms = {}
+        for sm_node in sm_nodes:
+            sm = {}
+            sm["StartAddress"] = EsiFile._hex_string(sm_node.get("StartAddress"))
+            sm["Type"] = EsiFile._sync_manager_type(sm_node.text)
+            sm["DefaultSize"] = EsiFile._hex_string(sm_node.get("DefaultSize"))
+            sm["MinSize"] = EsiFile._hex_string(sm_node.get("MinSize"))
+            sm["MaxSize"] = EsiFile._hex_string(sm_node.get("MaxSize"))
+            sm["Enable"] = EsiFile._xmlbool(sm_node.get("Enable"))
+            sm["ControlByte"] = EsiFile._hex_string(sm_node.get("ControlByte"))
+            sms[sm_node.text] = sm
+        return sms
+
+    def _parse_pdos(self, device_node: ET.Element, which_direction: str):
+        ''' which_direction is TxPdo or RxPdo, can be multiple '''
+        all = []
+        for pdo_node in device_node.iter(which_direction):
+            pdo = {}
+            pdo["Index"] = EsiFile._hex_string(pdo_node.find('Index').text)
+            pdo["Name"] = pdo_node.find('Name').text
+            # now enumerate members
+            size = 0
+            entries = []
+            for entry_node in pdo_node.iter('Entry'):
+                entry = {}
+                data_type = entry_node.find('DataType').text
+                entry["DataType"] = data_type
+                size = size + EsiFile._data_type_size(data_type)
+                entry["Name"] = entry_node.find('Name').text
+                entry["Index"] = EsiFile._hex_string(entry_node.find('Index').text)
+                entry["SubIndex"] = EsiFile._hex_string(entry_node.find('SubIndex').text)
+                entries.append(entry)
+            pdo["Entries"] = entries
+            pdo["Size"] = size
+            all.append(pdo)
+        return all
 
     @staticmethod
     def _hex_string(text):
+        if not text:
+            return None
         if '#x' == text[0:2]:
             return int(text[2:], 16)
         else:
             return int(text) # assume it's decimal
+
+    @staticmethod
+    def _xmlbool(text: str):
+        if not text:
+            return True # missing boolean attribute means true
+        elif "1" == text:
+            return True
+        elif "0" == text:
+            return False
+        else:
+            return ValueError("unrecognized bool value " + text)
+
+    @staticmethod
+    def _sync_manager_type(xmltext):
+        '''
+        https://content.helpme-codesys.com/en/libs/EtherCATStack/Current/EtherCATStack/pou-ETCSlaveStack/DynamicConfig/AddSyncManager.html
+        '''
+        if "MBoxOut" == xmltext:
+            return 3
+        elif "MBoxIn" == xmltext:
+            return 2
+        elif "Outputs" == xmltext:
+            return 1
+        elif "Inputs" == xmltext:
+            return 0
+        else:
+            raise ValueError("unknown sync manager type " + xmltext)
+
+    @staticmethod
+    def _data_type_size(data_type: str):
+        return 0 # STUB
 
 class ObjectDictionary:
     '''
