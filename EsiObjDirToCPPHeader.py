@@ -236,14 +236,18 @@ parser.add_argument('input_filename', help='path of ESI file')
 parser.add_argument('output_filename', help='path of H file')
 args = parser.parse_args()
 
-obj_dict = EsiFile.from_file(args.input_filename).object_dictionary
+esi_file = EsiFile.from_file(args.input_filename)
+devices = esi_file.devices
+first_device = next(iter(devices.values()))
+obj_dict = first_device["ObjectDictionary"]
 
 with open(args.output_filename, 'wt', encoding='UTF-8') as h_file:
     h_file.write(header1)
     # identify source and device(s)
     print(f'// from file {obj_dict.esi_file.filename}', file=h_file)
     print(f'// for vendor {obj_dict.esi_file.vendor}', file=h_file)
-    print(f'// for device(s) {obj_dict.esi_file.devices}', file=h_file)
+    device_names = ", ".join(obj_dict.esi_file.devices)
+    print(f'// for device(s) {device_names}', file=h_file)
     h_file.write(header2)
     for name, enum in obj_dict.enumtypes_dict.items():
         write_enum(name, enum, h_file)

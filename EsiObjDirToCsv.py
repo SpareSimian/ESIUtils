@@ -15,7 +15,10 @@ parser.add_argument('input_filename', help='path of ESI file')
 parser.add_argument('output_filename', help='path of CSV file')
 args = parser.parse_args()
 
-obj_dict = EsiFile.from_file(args.input_filename).object_dictionary
+esi_file = EsiFile.from_file(args.input_filename)
+devices = esi_file.devices
+first_device = next(iter(devices.values()))
+obj_dict = first_device["ObjectDictionary"]
 
 print(len(obj_dict.subitemtypes_dict), 'SubItems')
 print(len(obj_dict.enumtypes_dict), 'Enums')

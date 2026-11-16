@@ -7,11 +7,11 @@ import re
 import copy # need deepcopy of subitemtypes since they get reused
 
 class EsiFile:
-    def from_string(cls, s):
+    def from_string(cls, s: str):
         return cls(ET.fromstring(s), "")
 
     @classmethod
-    def from_file(cls, filename):
+    def from_file(cls, filename: str):
         tree = ET.parse(filename)
         return cls(tree.getroot(), filename)
         
@@ -19,20 +19,33 @@ class EsiFile:
         self.root = root
         self.filename = filename
         self.vendor = root.find('Vendor/Name').text;
-        self.devices = []
-        for device in root.findall('.//Devices/Device/Name'):
-            self.devices.append(device.text)
-        self.object_dictionary = ObjectDictionary(self)
-            
+        self.vendor_id = EsiFile._hex_string(root.find('Vendor/Id').text);
+        self.devices = {}
+        for device_node in root.findall('Descriptions/Devices/Device'):
+            device = {}
+            device_name = device_node.find('Name').text;
+            device_type = device_node.find('Type')
+            device["Type"] = device_type.text;
+            device["ProductCode"] = EsiFile._hex_string(device_type.get('ProductCode'))
+            # objdict belongs to a profile. for now, assume one profile 
+            device["ObjectDictionary"] = ObjectDictionary(self, device_node)
+            self.devices[device_name] = device
+
+    @staticmethod
+    def _hex_string(text):
+        if '#x' == text[0:2]:
+            return int(text[2:], 16)
+        else:
+            return int(text) # assume it's decimal
+
 class ObjectDictionary:
     '''
     extract EtherCATInfo/Descriptions/Devices/Device/Profile/Dictionary/Objects
     as a flattened Python dictionary. This assumes there's a single device
     and profile in the document.
     '''
-    def __init__(self, esi_file: EsiFile):
+    def __init__(self, esi_file: EsiFile, device_node: ET.Element):
         self.esi_file = esi_file # for access to parent object
-        root = esi_file.root
         self._tag_list = list() # list of an object's field names 
         # for testing if we have this one yet
         self._tag_set = set()
@@ -54,7 +67,7 @@ class ObjectDictionary:
         # structure so first extract the custom types
         self.subitemtypes_dict = dict()
         self.enumtypes_dict = dict()
-        self.datatypes = root.findall('.//DataTypes/DataType')
+        self.datatypes = device_node.findall('Profile/Dictionary/DataTypes/DataType')
         for datatype in self.datatypes:
             datatype_name = datatype.find('Name').text
             if ObjectDictionary._is_builtin_datatype(datatype_name):
@@ -68,7 +81,7 @@ class ObjectDictionary:
             else:
                 print(f'Unknown datatype {datatype_name}')
         self.objects_dict = dict()
-        objects = root.findall('.//Objects/Object')
+        objects = device_node.findall('Profile/Dictionary/Objects/Object')
         for object in objects:
             d = self._parse_object(object)
             dt = d['Type'] # datatype

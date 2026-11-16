@@ -34,7 +34,10 @@ def main():
     parser.add_argument('output_filename', help='path of ST GVL file')
     args = parser.parse_args()
 
-    obj_dict = EsiFile.from_file(args.input_filename).object_dictionary
+    esi_file = EsiFile.from_file(args.input_filename)
+    devices = esi_file.devices
+    first_device = next(iter(devices.values()))
+    obj_dict = first_device["ObjectDictionary"]
 
     # Generate CODESYS Structured Text Configuration Fragment
     with open(args.output_filename, 'w', encoding='utf-8') as f:
