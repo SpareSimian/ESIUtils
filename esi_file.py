@@ -6,9 +6,7 @@ import xml.etree.ElementTree as ET
 import re
 import copy # need deepcopy of subitemtypes since they get reused
 
-class ObjectDictionary:
-
-    @classmethod
+class EsiFile:
     def from_string(cls, s):
         return cls(ET.fromstring(s), "")
 
@@ -20,6 +18,13 @@ class ObjectDictionary:
     def __init__(self, root, filename):
         self.root = root
         self.filename = filename
+        self.object_dictionary = ObjectDictionary(self)
+            
+class ObjectDictionary:
+
+    def __init__(self, esi_file: EsiFile):
+        self.esi_file = esi_file # for access to parent object
+        root = esi_file.root
         self.vendor = root.find('Vendor/Name').text;
         self.devices = []
         for device in root.findall('.//Devices/Device/Name'):
