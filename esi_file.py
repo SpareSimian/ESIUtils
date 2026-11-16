@@ -18,17 +18,21 @@ class EsiFile:
     def __init__(self, root, filename):
         self.root = root
         self.filename = filename
-        self.object_dictionary = ObjectDictionary(self)
-            
-class ObjectDictionary:
-
-    def __init__(self, esi_file: EsiFile):
-        self.esi_file = esi_file # for access to parent object
-        root = esi_file.root
         self.vendor = root.find('Vendor/Name').text;
         self.devices = []
         for device in root.findall('.//Devices/Device/Name'):
             self.devices.append(device.text)
+        self.object_dictionary = ObjectDictionary(self)
+            
+class ObjectDictionary:
+    '''
+    extract EtherCATInfo/Descriptions/Devices/Device/Profile/Dictionary/Objects
+    as a flattened Python dictionary. This assumes there's a single device
+    and profile in the document.
+    '''
+    def __init__(self, esi_file: EsiFile):
+        self.esi_file = esi_file # for access to parent object
+        root = esi_file.root
         self._tag_list = list() # list of an object's field names 
         # for testing if we have this one yet
         self._tag_set = set()
@@ -46,7 +50,8 @@ class ObjectDictionary:
         self._add_tag('ModbusRegister')
         self._add_tag('PdoMapping')
         self._add_tag('Comment')
-        # custom objects can refer to datatypes for internal structure
+        # custom objects can refer to datatypes for internal
+        # structure so first extract the custom types
         self.subitemtypes_dict = dict()
         self.enumtypes_dict = dict()
         self.datatypes = root.findall('.//DataTypes/DataType')

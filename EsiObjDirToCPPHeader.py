@@ -242,8 +242,8 @@ with open(args.output_filename, 'wt', encoding='UTF-8') as h_file:
     h_file.write(header1)
     # identify source and device(s)
     print(f'// from file {obj_dict.esi_file.filename}', file=h_file)
-    print(f'// for vendor {obj_dict.vendor}', file=h_file)
-    print(f'// for device(s) {obj_dict.devices}', file=h_file)
+    print(f'// for vendor {obj_dict.esi_file.vendor}', file=h_file)
+    print(f'// for device(s) {obj_dict.esi_file.devices}', file=h_file)
     h_file.write(header2)
     for name, enum in obj_dict.enumtypes_dict.items():
         write_enum(name, enum, h_file)

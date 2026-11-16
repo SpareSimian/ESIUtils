@@ -45,5 +45,5 @@ with open(args.output_filename, 'wt', encoding='UTF-8') as csv_file:
     # identify source and device(s)
     print(file=csv_file)
     print(f'"from file {obj_dict.esi_file.filename}"', file=csv_file)
-    print(f'"for vendor {obj_dict.vendor}"', file=csv_file)
-    print(f'"for device(s) {obj_dict.devices}"', file=csv_file)
+    print(f'"for vendor {obj_dict.esi_file.vendor}"', file=csv_file)
+    print(f'"for device(s) {obj_dict.esi_file.devices}"', file=csv_file)
