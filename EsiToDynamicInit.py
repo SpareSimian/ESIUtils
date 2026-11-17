@@ -2,24 +2,28 @@ import xml.etree.ElementTree as ET
 import math
 import sys
 
+
 def parse_ethercat_int(val_str):
     if not val_str:
         return 0
     val_str = val_str.strip()
-    if val_str.startswith("#x") or val_str.startswith("0x"):
+    if val_str.startswith("#x") or val_str.startswith("0x") or val_str.startswith("0X"):
         return int(val_str[2:], 16)
     return int(val_str)
+
 
 def parse_ethercat_bool(val_str, default=False):
     if val_str is None:
         return default
     return val_str.strip().lower() in ("1", "true")
 
+
 def parse_hex_bytes(hex_str):
     if not hex_str:
         return b""
     cleaned = "".join(hex_str.split())
     return bytes.fromhex(cleaned)
+
 
 def get_all_pdos(device_elem):
     pdos = []
@@ -51,8 +55,8 @@ def get_all_pdos(device_elem):
             })
     return pdos
 
+
 def get_dc_modes(device_elem):
-    """Extracts all <Dc>/<OpMode> entries from the ESI device node."""
     modes = []
     for op in device_elem.findall("./Dc/OpMode"):
         name_elem = op.find("Name")
@@ -67,7 +71,6 @@ def get_dc_modes(device_elem):
         desc = desc_elem.text.strip() if desc_elem is not None and desc_elem.text else ""
         assign_val = parse_ethercat_int(assign_elem.text) if assign_elem is not None and assign_elem.text else 0
 
-        # ESI CycleTimeSync0/1 are in nanoseconds; Factor attribute multiplies master cycle time when value == 0
         c0_ns = parse_ethercat_int(c0_elem.text) if c0_elem is not None and c0_elem.text else 0
         c0_factor = int(c0_elem.get("Factor")) if (c0_elem is not None and c0_elem.get("Factor")) else 1
         s0_ns = parse_ethercat_int(s0_elem.text) if s0_elem is not None and s0_elem.text else 0
@@ -88,6 +91,7 @@ def get_dc_modes(device_elem):
             "s1_ns": s1_ns,
         })
     return modes
+
 
 def get_coe_init_cmds(device_elem):
     init_cmds = []
@@ -121,12 +125,13 @@ def get_coe_init_cmds(device_elem):
         })
     return init_cmds
 
+
 def generate_st_from_esi(
     esi_path,
     selected_pdo_indices=None,
     selected_dc_name=None,
     master_cycle_us=1000,
-    slave_ptr="pSlave",
+    slave="fbSlave",
 ):
     tree = ET.parse(esi_path)
     root = tree.getroot()
@@ -145,17 +150,23 @@ def generate_st_from_esi(
         dc_modes = get_dc_modes(device)
         init_cmds = get_coe_init_cmds(device)
 
-        # Select DC OpMode (match user-requested name, or pick first active DC mode if present)
+        # Select DC OpMode
         active_dc = None
         if dc_modes:
             if selected_dc_name:
                 active_dc = next((m for m in dc_modes if m["name"].lower() == selected_dc_name.lower()), None)
             else:
-                active_dc = next((m for m in dc_modes if m["assign_activate"] != 0), dc_modes)
+                active_dc = next((m for m in dc_modes if m["assign_activate"] != 0), dc_modes[0])
 
-        # Select active PDOs
+        # Select active PDOs: override if user passed indices, otherwise use default Sm assignments
         if selected_pdo_indices is not None:
-            active_pdos = [p for p in all_pdos if p["index"] in selected_pdo_indices]
+            requested_set = set(selected_pdo_indices)
+            active_pdos = [p for p in all_pdos if p["index"] in requested_set]
+            found_set = {p["index"] for p in active_pdos}
+            missing = requested_set - found_set
+            if missing:
+                missing_str = ", ".join(f"16#{m:04X}" for m in sorted(missing))
+                print(f"// WARNING: Requested PDO(s) not found in {dev_name}: {missing_str}")
         else:
             active_pdos = [p for p in all_pdos if p["default_sm"] is not None]
 
@@ -180,8 +191,9 @@ def generate_st_from_esi(
                 print(f"//   '{m['name']}' (AssignActivate: 16#{m['assign_activate']:04X}) - {m['desc']}")
         print("// Available PDOs in ESI:")
         for p in all_pdos:
+            is_selected = " <-- SELECTED" if p in active_pdos else ""
             flag = f"Default SM{p['default_sm']}" if p["default_sm"] is not None else "Optional"
-            print(f"//   [{p['direction']}] 16#{p['index']:04X} ({p['bytes']} bytes) - {p['name']} [{flag}]")
+            print(f"//   [{p['direction']}] 16#{p['index']:04X} ({p['bytes']} bytes) - {p['name']} [{flag}]{is_selected}")
         print("// ============================================================================")
 
         if large_buffers:
@@ -191,16 +203,15 @@ def generate_st_from_esi(
                 print(f"    {var_name} : ARRAY [0..{length - 1}] OF BYTE := [{byte_literals}];{cmt}")
             print("END_VAR\n")
 
-        # 1. Distributed Clocks (SetDCSettings)
+        # 1. Distributed Clocks
         if active_dc is not None:
             print(f"// --- 1. Distributed Clocks ({active_dc['name']}) ---")
             assign = active_dc["assign_activate"]
             x_enable_dc = bool(assign & 0x0100) or (assign != 0)
             x_enable_sync0 = bool(assign & 0x0200)
             x_enable_sync1 = bool(assign & 0x0400)
+            low_byte = assign & 0xFF
 
-            # Calculate Sync0 / Sync1 cycle times in microseconds
-            # (CODESYS SetDCSettings expects microseconds)
             if x_enable_sync0:
                 c0_us = (active_dc["c0_ns"] // 1000) if active_dc["c0_ns"] > 0 else (master_cycle_us * active_dc["c0_factor"])
             else:
@@ -214,15 +225,14 @@ def generate_st_from_esi(
             s1_us = active_dc["s1_ns"] // 1000
 
             print(
-                f"{slave_ptr}^.SetDCSettings("
+                f"{slave}.SetDCSettings("
                 f"{str(x_enable_dc).upper()}, {str(x_enable_sync0).upper()}, "
                 f"{c0_us}, {s0_us}, "
                 f"{str(x_enable_sync1).upper()}, {c1_us}, {s1_us}, "
-                f"16#{assign:04X}); // {active_dc['name']}"
+                f"16#{low_byte:02X}); // {active_dc['name']} (AssignActivate: 16#{assign:04X})\n"
             )
-            print("")
 
-        # 2. ESI <InitCmd> Startup Commands
+        # 2. ESI CoE InitCmds
         print("// --- 2. ESI CoE InitCmds ---")
         buf_counter = 0
         for cmd in filtered_init_cmds:
@@ -233,7 +243,7 @@ def generate_st_from_esi(
             if cmd["length"] <= 4:
                 val = int.from_bytes(cmd["bytes"], byteorder="little", signed=False)
                 print(
-                    f"{slave_ptr}^.AddCoEInit("
+                    f"{slave}.AddCoEInit("
                     f"16#{cmd['index']:04X}, {cmd['subindex']}, {cmd['length']}, "
                     f"16#{val:X}, {cmd['timeout']}, {ca_str}, FALSE);{cmt_str}"
                 )
@@ -241,27 +251,29 @@ def generate_st_from_esi(
                 var_name = large_buffers[buf_counter]
                 buf_counter += 1
                 print(
-                    f"{slave_ptr}^.AddCoEInit("
+                    f"{slave}.AddCoEInit("
                     f"16#{cmd['index']:04X}, {cmd['subindex']}, {cmd['length']}, "
                     f"ADR({var_name}), {cmd['timeout']}, {ca_str}, TRUE);{cmt_str}"
                 )
+
         # 3. Custom PDO Assignment Commands
+        cmt = chr(47) * 2
         if selected_pdo_indices is not None:
-            print("\n// --- 3. Custom PDO Assignment (Overrides ESI 16#1C12 / 16#1C13) ---")
+            print(f"\n{cmt} --- 3. Custom PDO Assignment (Overrides ESI 16#1C12 / 16#1C13) ---")
             for assign_idx, pdo_group, label in [
                 (0x1C12, active_rx, "SM2 RxPDO Assign"),
                 (0x1C13, active_tx, "SM3 TxPDO Assign"),
             ]:
                 if pdo_group:
                     pdo_list_str = ", ".join(f"16#{p['index']:04X}" for p in pdo_group)
-                    print(f"// {label}: [{pdo_list_str}]")
-                    print(f"{slave_ptr}^.AddCoEInit(16#{assign_idx:04X}, 0, 1, 0, 1000, FALSE, FALSE);")
+                    print(f"{cmt} {label}: [{pdo_list_str}]")
+                    print(f"{slave}.AddCoEInit(16#{assign_idx:04X}, 0, 1, 0, 1000, FALSE, FALSE);")
                     for sub_idx, p in enumerate(pdo_group, start=1):
-                        print(f"{slave_ptr}^.AddCoEInit(16#{assign_idx:04X}, {sub_idx}, 2, 16#{p['index']:04X}, 1000, FALSE, FALSE);")
-                    print(f"{slave_ptr}^.AddCoEInit(16#{assign_idx:04X}, 0, 1, {len(pdo_group)}, 1000, FALSE, FALSE);")
-                    
+                        print(f"{slave}.AddCoEInit(16#{assign_idx:04X}, {sub_idx}, 2, 16#{p['index']:04X}, 1000, FALSE, FALSE);")
+                    print(f"{slave}.AddCoEInit(16#{assign_idx:04X}, 0, 1, {len(pdo_group)}, 1000, FALSE, FALSE);")
+
         # 4. SyncManagers
-        print("\n// --- 4. SyncManagers ---")
+        print(f"\n{cmt} --- 4. SyncManagers ---")
         sm_list = []
         for idx, sm in enumerate(device.findall("Sm")):
             sm_role = sm.text.strip() if sm.text else ""
@@ -269,6 +281,7 @@ def generate_st_from_esi(
             default_size = parse_ethercat_int(sm.get("DefaultSize"))
             control_byte = parse_ethercat_int(sm.get("ControlByte"))
             usi_type, type_comment = sm_type_map.get(sm_role, (0, f"UNKNOWN({sm_role})"))
+
             if sm_role == "Outputs":
                 length = sum(p["bytes"] for p in active_rx)
                 x_enable = length > 0
@@ -278,7 +291,7 @@ def generate_st_from_esi(
             else:
                 length = default_size
                 x_enable = parse_ethercat_bool(sm.get("Enable"), default=True)
-                
+
             sm_info = {
                 "index": idx,
                 "role": sm_role,
@@ -292,18 +305,19 @@ def generate_st_from_esi(
 
             st_bool = "TRUE" if x_enable else "FALSE"
             print(
-                f"{slave_ptr}^.AddSyncManager("
+                f"{slave}.AddSyncManager("
                 f"16#{start_addr:04X}, {length}, 16#{control_byte:02X}, {st_bool}, {usi_type}); "
-                f"// SM{idx}: {type_comment}"
+                f"{cmt} SM{idx}: {type_comment}"
             )
-            
+
         # 5. FMMUs + AlignFMMU
-        print("\n// --- 5. FMMUs ---")
+        print(f"\n{cmt} --- 5. FMMUs ---")
         for fmmu_idx, fmmu in enumerate(device.findall("Fmmu")):
             fmmu_role = fmmu.text.strip() if fmmu.text else ""
             sm_attr = fmmu.get("Sm")
+
             if fmmu_role == "MBoxState":
-                print(f"{slave_ptr}^.AddFMMU(0, 1, 0, 0, 16#080D, 0, 1, 1); // FMMU{fmmu_idx}: MBoxState")
+                print(f"{slave}.AddFMMU(0, 1, 0, 0, 16#080D, 0, 1, 1); {cmt} FMMU{fmmu_idx}: MBoxState")
                 continue
 
             target_sm = (
@@ -315,21 +329,23 @@ def generate_st_from_esi(
             if target_sm and target_sm["length"] > 0:
                 usi_access = 1 if fmmu_role == "Inputs" else 2
                 print(
-                    f"{slave_ptr}^.AddFMMU("
+                    f"{slave}.AddFMMU("
                     f"0, {target_sm['length']}, 0, 7, 16#{target_sm['start_addr']:04X}, 0, {usi_access}, 1); "
-                    f"// FMMU{fmmu_idx}: {fmmu_role} -> SM{target_sm['index']}"
+                    f"{cmt} FMMU{fmmu_idx}: {fmmu_role} -> SM{target_sm['index']}"
                 )
-        print(f"{slave_ptr}^.AlignFMMU();")
-        print("\n")
+
+        print(f"{slave}.AlignFMMU();\n\n")
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print('Usage: python esi_to_st.py <esi_file.xml> [0x1601 0x1A02 ...] [--dc "DC Sync0"] [--cycle 1000]')
+        print("Usage: python esi_to_st.py <esi_file.xml> [0x1601 0x1A02 ...] [--dc \"DC Sync0\"] [--cycle 1000]")
     else:
         esi_file = sys.argv[1]
         custom_pdos = []
         dc_name = None
         cycle_us = 1000
+
         args = sys.argv[2:]
         i = 0
         while i < len(args):
@@ -340,11 +356,13 @@ if __name__ == "__main__":
                 cycle_us = int(args[i + 1])
                 i += 2
             else:
-                custom_pdos.append(int(args[i], 16))
+                custom_pdos.append(parse_ethercat_int(args[i]))
                 i += 1
+
         generate_st_from_esi(
             esi_file,
             selected_pdo_indices=custom_pdos if custom_pdos else None,
             selected_dc_name=dc_name,
             master_cycle_us=cycle_us,
         )
+        
